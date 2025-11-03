@@ -1,14 +1,11 @@
 using UnityEngine;
 
 public class GameManager : MonoBehaviour {
-    // IDEA: Should these be public?
     public enum GameState { MainMenu, Playing, GameOver }
-    // TODO: Refector currentState to private with getter/setter
     private GameState currentState;
     public enum DifficultyState { Normal, Scaling}
     private DifficultyState currentDifficulty;
 
-    private GameObject player;
     private int score;
     private float scoreInterval;
     private float scoreTimer;
@@ -41,6 +38,8 @@ public class GameManager : MonoBehaviour {
         score = 0;
         scoreTimer = 0.0f;
 
+        currentDifficulty = (difficultyLevel == 0) ? DifficultyState.Normal : DifficultyState.Scaling;
+
         currentState = GameState.Playing;
     }
 
@@ -57,4 +56,5 @@ public class GameManager : MonoBehaviour {
     public int GetScore() { return score; }
     public DifficultyState GetDifficultyLevel() { return currentDifficulty; }
     public GameState GetCurrentState() { return currentState; }
+    public int GetCurrentScore() { return score; }
 }

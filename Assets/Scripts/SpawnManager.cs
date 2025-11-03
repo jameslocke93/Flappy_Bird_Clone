@@ -6,12 +6,14 @@ public class SpawnManager : MonoBehaviour {
     [SerializeField] private GameObject playerPrefab;
     [SerializeField] private GameObject obstaclePrefab;
     [SerializeField] private double maxObstacleAngle;
-    [SerializeField] private float obstacleGap;
+    [SerializeField] private float obstacleMaxGap;
+    [SerializeField] private float obstacleMinGap;
     [SerializeField] private float obstacleMinYPosition;
     [SerializeField] private float obstacleMaxYPosition;
     [SerializeField] private float obstacleSpawnInterval;
     [SerializeField] private int obstacleSpawnXPosition;
     [SerializeField] private int obstacleSpawnDelay;
+    [SerializeField] private float obstacleGapScaling;
 
     private GameManager gameManager;
     private GameManager.GameState previousState;
@@ -23,6 +25,8 @@ public class SpawnManager : MonoBehaviour {
     private float obstacleMoveSpeed;
     private float maxYPos;
     private float minYPos;
+    private float obstacleGap;
+    private int currentScore;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start() {
@@ -33,12 +37,7 @@ public class SpawnManager : MonoBehaviour {
         // Convert degrees -> radians for Math.Tan.
         angleRad = maxObstacleAngle * Math.PI / 180.0;
 
-        // Init each game loop
-        obstacleSpawnTimer = 0f;
-        obstacleSpawnDelayTimer = 0f;
-        previousY = 0f;
-        maxYPos = obstacleMaxYPosition;
-        minYPos = obstacleMinYPosition;
+        ResetSpawnParams();
 
         if (maxObstacleAngle > 89) {
             Debug.LogWarning("Max obstacle angle too high, setting to 89 degrees");
@@ -47,20 +46,19 @@ public class SpawnManager : MonoBehaviour {
             Debug.LogWarning("Max obstacle angle too low, setting to 1 degree");
             maxObstacleAngle = 1;
         }
+        if (obstacleSpawnDelay < 0) {
+            Debug.LogWarning("Obstacle spawn delay cannot be negative, setting to 0");
+            obstacleSpawnDelay = 0;
+        }
     }
 
     void Update() {
         switch(gameManager.GetCurrentState()) {
             case GameManager.GameState.Playing:
-                // TODO: Need to check for gameManager difficulty settings to adjust spawn rate/speed
-                if (previousState == GameManager.GameState.MainMenu) {
-                    SpawnPlayer();
+                if (gameManager.GetDifficultyLevel() == GameManager.DifficultyState.Scaling) {
+                    ScaleDifficulty();
                 }
-                if (obstacleSpawnDelayTimer >= obstacleSpawnDelay) {
-                    StartSpawningObstacles();
-                } else {
-                    obstacleSpawnDelayTimer += Time.deltaTime;
-                }
+                PlayLoop();
                 break;
             case GameManager.GameState.MainMenu:
                 if (previousState == GameManager.GameState.GameOver) {
@@ -69,18 +67,50 @@ public class SpawnManager : MonoBehaviour {
                     DespawnPlayer();
                     DespawnObstacles();
 
-                    obstacleSpawnTimer = 0f;
-                    obstacleSpawnDelayTimer = 0f;
-                    previousY = 0f;
-                    maxYPos = obstacleMaxYPosition;
-                    minYPos = obstacleMinYPosition;
+                    ResetSpawnParams();
                 }
                 break;
         }
         previousState = gameManager.GetCurrentState();
     }
 
+    private void ResetSpawnParams() {
+        // Init each game loop
+        obstacleSpawnTimer = obstacleSpawnInterval - obstacleSpawnDelay;
+        obstacleSpawnDelayTimer = 0f;
+        previousY = 0f;
+        obstacleGap = obstacleMaxGap;
+        maxYPos = obstacleMaxYPosition;
+        minYPos = obstacleMinYPosition;
+        currentScore = 0;
+    }
 
+    private void PlayLoop() {
+        // TODO: Need to check for gameManager difficulty settings to adjust spawn rate/speed
+        if (previousState == GameManager.GameState.MainMenu) {
+            SpawnPlayer();
+        }
+        if (obstacleSpawnDelayTimer >= obstacleSpawnDelay) {
+            StartSpawningObstacles();
+        } else {
+            obstacleSpawnDelayTimer += Time.deltaTime;
+        }
+    }
+
+    private void ScaleDifficulty() {
+        // Reduce obstacle gap over time to increase difficulty
+
+        // As score is based on time survived, we can use that to scale difficulty
+        if (currentScore == gameManager.GetCurrentScore()) {
+            return;
+        }
+        currentScore = gameManager.GetCurrentScore();
+        obstacleGap -= (gameManager.GetCurrentScore() * obstacleGapScaling);
+        if (obstacleGap < obstacleMinGap) {
+            obstacleGap = obstacleMinGap;
+        }
+        Debug.Log("Obstacle gap: " + obstacleGap);
+    }
 
     private void SpawnPlayer() {
         player = Instantiate(playerPrefab, playerSpawnLocation, playerPrefab.transform.rotation);
@@ -103,7 +133,6 @@ public class SpawnManager : MonoBehaviour {
 
         if (obstacleSpawnTimer >= obstacleSpawnInterval) {
             previousY = SpawnObstacle(minYPos, maxYPos, obstacleSpawnXPosition, obstacleGap);
-
             // Generate new Y range for next obstacle spawn
             (maxYPos, minYPos) = GenerateObstacleYRange(previousY);
             obstacleSpawnTimer = 0f;
